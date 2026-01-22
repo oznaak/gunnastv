@@ -1,7 +1,7 @@
 {
-  "name": "gunnastv-backend",
+  "name": "xtreamify-backend",
   "version": "1.0.0",
-  "description": "GunnasTV IPTV Streaming Backend",
+  "description": "Xtreamify Web Player Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
