@@ -16,7 +16,7 @@ A modern, self-hosted IPTV web player that connects to Xtream Codes API provider
 - 📋 **EPG Guide** — Electronic Program Guide with timeline view
 - ⭐ **Favorites** — Save channels and categories, import/export support
 - 🌍 **Bilingual** — Portuguese and English interface
-- 📱 **Responsive** — Works on desktop, tablet, and mobile
+- 📱 **Responsive** — Works on desktop, tablet, and mobile (work in progress)
 - 🐳 **Docker Ready** — One-command deployment
 
 ---
@@ -106,16 +106,6 @@ your-domain.com {
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret key for JWT tokens (min 32 chars) | `openssl rand -hex 32` |
 | `ALLOWED_ORIGIN` | Frontend URL for CORS | `https://your-domain.com` |
-
-### Cloudflare Settings (if using)
-
-> ⚠️ **Important:** Xtream streams use HTTP. Configure Cloudflare properly:
-
-- **SSL/TLS Mode:** Flexible
-- **Automatic HTTPS Rewrites:** OFF
-- **Always Use HTTPS:** OFF (or use Page Rules to exclude stream URLs)
-
----
 
 ## 📁 Project Structure
 
