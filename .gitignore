@@ -9,9 +9,9 @@ node_modules
 !.env.example
 
 # Lock files
-/backend/package-lock.json
-/frontend/package-lock.json
-package-lock.json
+#/backend/package-lock.json
+#/frontend/package-lock.json
+#package-lock.json
 
 # AI Instructions (personal)
 /.github/copilot-instructions.md
