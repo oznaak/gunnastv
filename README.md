@@ -43,7 +43,7 @@ A modern, self-hosted IPTV web player that connects to Xtream Codes API provider
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/xtreamify.git
+git clone https://github.com/oznaak/Xtreamify-Web-Player.git
 cd xtreamify
 
 # Install dependencies
@@ -68,7 +68,7 @@ Open http://localhost:3000 in your browser.
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/yourusername/xtreamify.git
+git clone https://github.com/oznaak/Xtreamify-Web-Player.git
 cd xtreamify
 
 # Create production environment file
