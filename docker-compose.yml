@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  gunnastv:
+    build: .
+    container_name: gunnastv
+    restart: unless-stopped
+    ports:
+      - "3000:3000"  # Change left port if 3000 is taken on your VPS
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
+    networks:
+      - web  # Same network as your reverse proxy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  web:
+    external: true  # Use existing network (create with: docker network create web)

@@ -1,0 +1,29 @@
+# Dependencies
+/backend/node_modules
+/frontend/node_modules
+node_modules
+
+# Environment files (contain secrets)
+.env
+/backend/.env
+!.env.example
+
+# Lock files
+/backend/package-lock.json
+/frontend/package-lock.json
+package-lock.json
+
+# AI Instructions (personal)
+/.github/copilot-instructions.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

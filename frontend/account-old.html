@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>GunnasTV - Account</title>
+    <style>
+        .sensitive-field {
+            position: relative;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 9px 11px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 7px;
+        }
+
+        .sensitive-field:hover {
+            border-color: #4b5563;
+            background: linear-gradient(135deg, #273142 0%, #1a2332 100%);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+
+        .sensitive-field .value {
+            flex: 1;
+            letter-spacing: 0.05em;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: left center;
+        }
+        
+        .sensitive-field[data-visible="true"] .value {
+            animation: revealText 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        @keyframes revealText {
+            0% {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .sensitive-field .icon {
+            font-size: 1rem;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .sensitive-field:hover .icon {
+            opacity: 1;
+        }
+
+        .helper-text {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-top: 2px;
+            transition: color 0.3s ease;
+        }
+
+        .favorites-section {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 16px;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 9px 15px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .action-btn.secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+
+        .action-btn.secondary:hover {
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        }
+
+        .status-message {
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status-message.success {
+            background-color: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            display: block;
+        }
+
+        .status-message.error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            display: block;
+        }
+
+        #favoriteFileInput {
+            display: none;
+        }
+
+        /* Toast Notification Styles */
+        #toastContainer {
+            position: fixed;
+            top: 24px;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            pointer-events: auto;
+            cursor: default;
+            white-space: nowrap;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%);
+            color: white;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+            color: white;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .toast.exit {
+            animation: slideOut 0.5s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+        }
+
+        .toast-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .toast-message {
+            flex: 1;
+        }
+
+        main {
+            padding-bottom: 80px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+    <script src="app.js"></script>
+    <script>
+        requireAuth();
+    </script>
+
+    <nav class="h-14 bg-gray-900 border-b border-gray-800 flex items-center px-6 justify-between flex-shrink-0">
+        <div class="flex items-center gap-6">
+            <img src="assets/logo_w.png" class="h-16" />
+            <a href="dashboard.html" class="text-sm text-gray-300 hover:text-white" data-en="Channels"
+                data-pt="Canais"></a>
+            <a href="epg-guide.html" class="text-sm text-white" data-en="Program Guide" data-pt="Guia de Programas"></a>
+            <a href="account.html" class="text-sm text-white" data-en="Account" data-pt="Conta"></a>
+        </div>
+        <a id="authAction" class="text-sm px-4 py-1.5 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer"
+            data-en="Logout" data-pt="Sair"></a>
+    </nav>
+
+    <main class="flex-1 flex flex-col items-center px-4 py-6 overflow-y-auto">
+        <div id="accountContainer" class="w-full max-w-lg bg-gray-800 rounded-xl p-5 space-y-3.5 my-auto">
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <script>
+        // 1. INSTANT UI INITIALIZATION
+        initNavbar();
+        applyLanguage();
+
+        const container = document.getElementById('accountContainer');
+
+        function renderAccountUI(user) {
+            const lang = localStorage.getItem('lang') || 'pt';
+
+            // Build the skeleton instantly
+            container.innerHTML = `
+                <h1 class="text-xl mb-4" data-en="Account" data-pt="Conta"></h1>
+                
+                <div class="pb-3 border-b border-gray-700">
+                    <div class="text-gray-400 text-sm mb-2" data-en="Display Language" data-pt="Idioma de exibição"></div>
+                    <div class="relative w-max">
+                        <div onclick="toggleLangDropdown()" class="flex items-center gap-2.5 bg-gray-700/50 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-700 transition">
+                            <img id="currentFlag" src="assets/${lang === 'pt' ? 'pt_flag.png' : 'gb_flag.png'}" class="h-4 w-auto object-contain" />
+                            <span id="currentLangText" class="text-sm">${lang === 'pt' ? 'Português' : 'English'}</span>
+                            <span class="text-xs text-gray-400">▼</span>
+                        </div>
+                        <div id="langDropdown" class="absolute left-0 mt-2 w-full bg-gray-700 border border-gray-600 rounded-lg shadow-xl hidden z-50 overflow-hidden">
+                            <div onclick="setLanguage('pt')" class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-600 cursor-pointer text-sm">
+                                <img src="assets/pt_flag.png" class="h-3.5 w-auto object-contain" /> Português
+                            </div>
+                            <div onclick="setLanguage('en')" class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-600 cursor-pointer text-sm">
+                                <img src="assets/gb_flag.png" class="h-3.5 w-auto object-contain" /> English
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3.5 pt-2">
+                    <div>
+                        <div class="text-gray-400 text-sm font-medium mb-1.5" data-en="DNS" data-pt="DNS">DNS</div>
+                        <div class="sensitive-field" 
+                             onclick="toggleSensitiveData(this, '${user.url || '--'}:${user.port || '--'}')" 
+                             data-visible="false">
+                          <span class="value">••••••••••••</span>
+                          <span class="icon">👁</span>
+                        </div>
+                        <div class="helper-text" data-en="Click to reveal" data-pt="Clica para revelar"></div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 text-sm font-medium mb-1.5" data-en="Username" data-pt="Utilizador"></div>
+                        <div class="sensitive-field" 
+                             onclick="toggleSensitiveData(this, '${user.username}')" 
+                             data-visible="false">
+                          <span class="value">${'*'.repeat(Math.min(user.username.length, 12))}</span>
+                          <span class="icon">👁</span>
+                        </div>
+                        <div class="helper-text" data-en="Click to reveal" data-pt="Clica para revelar"></div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400 text-sm font-medium mb-1.5" data-en="Password" data-pt="Palavra-passe"></div>
+                        <div class="sensitive-field" 
+                             onclick="toggleSensitiveData(this, '${user.password}')" 
+                             data-visible="false">
+                          <span class="value">${'*'.repeat(Math.min(user.password.length, 12))}</span>
+                          <span class="icon">👁</span>
+                        </div>
+                        <div class="helper-text" data-en="Click to reveal" data-pt="Clica para revelar"></div>
+                    </div>
+                    <div class="flex gap-10">
+                        <div>
+                            <div class="text-gray-400 text-sm" data-en="Status" data-pt="Estado"></div>
+                            <div id="accStatus" class="animate-pulse text-gray-500 text-sm"></div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400 text-sm" data-en="Expiration date" data-pt="Data de validade"></div>
+                            <div id="accExp" class="animate-pulse text-gray-500 text-sm"></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-10">
+                        <div>
+                            <div class="text-gray-400 text-sm" data-en="Active connections" data-pt="Ligações ativas"></div>
+                            <div id="accActiveCons" class="animate-pulse text-gray-500 text-sm"></div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400 text-sm" data-en="Max connections" data-pt="Limite de ligações"></div>
+                            <div id="accMaxCons" class="animate-pulse text-gray-500 text-sm"></div>
+                        </div>
+                    </div>
+
+                    <div class="favorites-section">
+                        <h3 class="text-base font-semibold mb-2.5" data-en="Manage Favorites" data-pt="Gerenciar Favoritos"></h3>
+                        <p class="text-gray-400 text-sm mb-3" data-en="Export and import your favorite channels and categories" data-pt="Exporte e importe seus canais e categorias favoritos"></p>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="action-btn" onclick="exportFavoritesHandler()" data-en="Export Favorites" data-pt="Exportar Favoritos"></button>
+                            <button class="action-btn secondary" onclick="document.getElementById('favoriteFileInput').click()" data-en="Import Favorites" data-pt="Importar Favoritos"></button>
+                        </div>
+                        <input type="file" id="favoriteFileInput" accept=".json" onchange="importFavoritesHandler(event)" />
+                    </div>
+                </div>
+            `;
+            applyLanguage();
+        }
+
+        async function updateLiveInfo() {
+            const token = localStorage.getItem('token');
+            const lang = localStorage.getItem('lang') || 'pt';
+
+            try {
+                const res = await fetch('http://localhost:3000/api/xtream/account', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error();
+                const user = await res.json();
+                localStorage.setItem('user', JSON.stringify(user));
+                // Update fields without reloading the whole page
+                const statusMap = {
+                    'Active': { pt: 'Ativo', en: 'Active', class: 'text-green-400' },
+                    'Expired': { pt: 'Expirado', en: 'Expired', class: 'text-red-400' }
+                };
+                const currentStatus = statusMap[user.status] || { pt: user.status, en: user.status, class: 'text-gray-400' };
+
+                const statusEl = document.getElementById('accStatus');
+                statusEl.textContent = currentStatus[lang];
+                statusEl.className = currentStatus.class;
+
+                const expEl = document.getElementById('accExp');
+                expEl.classList.remove('animate-pulse', 'text-gray-500');
+                if (user.exp_date && user.exp_date !== '0') {
+                    expEl.textContent = new Date(Number(user.exp_date) * 1000).toLocaleDateString(lang === 'pt' ? 'pt-PT' : 'en-GB');
+                } else {
+                    expEl.textContent = lang === 'pt' ? 'Sem expiração' : 'No expiration';
+                }
+
+                document.getElementById('accActiveCons').textContent = user.active_cons;
+                document.getElementById('accActiveCons').classList.remove('animate-pulse', 'text-gray-500');
+
+                document.getElementById('accMaxCons').textContent = user.max_connections;
+                document.getElementById('accMaxCons').classList.remove('animate-pulse', 'text-gray-500');
+
+            } catch (err) {
+                console.error("Background update failed", err);
+            }
+        }
+
+        // STARTUP LOGIC
+        // 1. Load basic info from local storage (Login data)
+        const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        renderAccountUI(cachedUser);
+
+        // 2. Fetch fresh data in the background
+        updateLiveInfo();
+
+        function toggleLangDropdown() {
+            const dropdown = document.getElementById('langDropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        function setLanguage(lang) {
+            localStorage.setItem('lang', lang);
+            const cachedUser = JSON.parse(localStorage.getItem('user') || '{}');
+            renderAccountUI(cachedUser);
+            updateLiveInfo();
+        }
+
+        function applyLanguage() {
+            const lang = localStorage.getItem('lang') || 'pt';
+            document.documentElement.lang = lang;
+            document.querySelectorAll('[data-en]').forEach(el => {
+                const text = el.getAttribute(`data-${lang}`);
+                if (text) el.textContent = text;
+            });
+        }
+
+        window.onclick = function (event) {
+            if (!event.target.closest('.relative')) {
+                const dropdown = document.getElementById('langDropdown');
+                if (dropdown && !dropdown.classList.contains('hidden')) dropdown.classList.add('hidden');
+            }
+        }
+
+        function toggleSensitiveData(element, realValue) {
+            const valueSpan = element.querySelector('.value');
+            const isVisible = element.getAttribute('data-visible') === 'true';
+            const helperText = element.nextElementSibling;
+            const lang = localStorage.getItem('lang') || 'pt';
+            
+            if (isVisible) {
+                // Hide - show masked value and "Click to reveal"
+                valueSpan.textContent = realValue.length <= 12 ? '*'.repeat(realValue.length) : '*'.repeat(12);
+                element.setAttribute('data-visible', 'false');
+                element.classList.remove('visible');
+                if (helperText) {
+                    helperText.setAttribute('data-en', 'Click to reveal');
+                    helperText.setAttribute('data-pt', 'Clica para revelar');
+                    helperText.textContent = lang === 'en' ? 'Click to reveal' : 'Clica para revelar';
+                }
+            } else {
+                // Show - display real value and "Click to hide"
+                valueSpan.textContent = realValue;
+                element.setAttribute('data-visible', 'true');
+                element.classList.add('visible');
+                if (helperText) {
+                    helperText.setAttribute('data-en', 'Click to hide');
+                    helperText.setAttribute('data-pt', 'Clica para esconder');
+                    helperText.textContent = lang === 'en' ? 'Click to hide' : 'Clica para esconder';
+                }
+            }
+        }
+
+        function exportFavoritesHandler() {
+            exportFavorites();
+            const lang = localStorage.getItem('lang') || 'pt';
+            const message = lang === 'en' ? 'Favorites exported successfully!' : 'Favoritos exportados com sucesso!';
+            showToast(message, 'success');
+        }
+
+        function importFavoritesHandler(event) {
+            const file = event.target.files[0];
+            const lang = localStorage.getItem('lang') || 'pt';
+            
+            if (!file) return;
+
+            importFavorites(file).then(result => {
+                const message = lang === 'en' ? 'Favorites imported successfully!' : 'Favoritos importados com sucesso!';
+                showToast(message, 'success');
+            }).catch(error => {
+                const message = lang === 'en' ? 'Error: ' + error.message : 'Erro: ' + error.message;
+                showToast(message, 'error');
+            });
+
+            // Reset file input
+            event.target.value = '';
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icon = type === 'success' ? '✓' : '⚠';
+            toast.innerHTML = `
+                <span class="toast-icon">${icon}</span>
+                <span class="toast-message">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-remove after 3.5 seconds (500ms animation + 3s display)
+            setTimeout(() => {
+                toast.classList.add('exit');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>

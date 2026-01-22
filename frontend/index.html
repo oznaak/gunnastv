@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- Configuration - override for production -->
+    <script>
+        window.APP_CONFIG = {
+            // Change to your production URL when deploying (e.g., 'https://yourdomain.com/api')
+            API_URL: 'http://localhost:3000/api'
+        };
+    </script>
+    <!-- Tailwind CSS (CDN for development - consider self-hosting for production) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HLS.js with pinned version and SRI for integrity -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js" 
+            integrity="sha384-1B+J55elPxu+trIhW7QThjZg3evX8C5P6zjB82Xnn46RKPAXpL+vkanRSjCidsJv" 
+            crossorigin="anonymous"></script>
+    <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+    <title>Xtreamify Web Player</title>
+    <style>
+        /* Global Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #374151 #111827;
+        }
+
+        /* Loading Screen Styles */
+        #loadingScreen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.5s ease-out;
+        }
+
+        #loadingScreen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .logo-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin-bottom: 40px;
+        }
+
+        .logo-mask {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .logo-mask img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: brightness(0.3);
+        }
+
+        .logo-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%;
+            overflow: hidden;
+            transition: height 0.3s ease-out;
+        }
+
+        .logo-fill img {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+        }
+
+        .loading-text {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            margin-top: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        /* View Container Styles */
+        .view-container {
+            position: absolute;
+            top: 56px;
+            /* Height of navbar (h-14 = 56px) */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: calc(100vh - 56px);
+            overflow: hidden;
+            display: none;
+        }
+
+        .view-container[data-view="login"] {
+            top: 0;
+            /* Login view is full screen */
+            height: 100vh;
+        }
+
+        .view-container.active {
+            display: block;
+        }
+
+        .view-container.active.slide-from-right {
+            animation: slideInFromRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .view-container.active.slide-from-left {
+            animation: slideInFromLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .view-container.exit-left {
+            animation: fadeOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .view-container.exit-right {
+            animation: fadeOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes slideInFromRight {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes slideInFromLeft {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes slideOutLeft {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            to {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            to {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        /* Player Overlay */
+        .player-active {
+            transform: translateY(0) !important;
+        }
+
+        /* Account Page Styles */
+        .sensitive-field {
+            position: relative;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 9px 11px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 7px;
+        }
+
+        .sensitive-field:hover {
+            border-color: #4b5563;
+            background: linear-gradient(135deg, #273142 0%, #1a2332 100%);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+
+        .sensitive-field .value {
+            flex: 1;
+            letter-spacing: 0.05em;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: left center;
+        }
+
+        .sensitive-field[data-visible="true"] .value {
+            animation: revealText 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes revealText {
+            0% {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .sensitive-field .icon {
+            font-size: 1rem;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .sensitive-field:hover .icon {
+            opacity: 1;
+        }
+
+        .helper-text {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-top: 2px;
+            transition: color 0.3s ease;
+        }
+
+        .favorites-section {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 16px;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 9px 15px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .action-btn.secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+
+        .action-btn.secondary:hover {
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        }
+
+        #favoriteFileInput {
+            display: none;
+        }
+
+        /* Toast Notification Styles */
+        #toastContainer {
+            position: fixed;
+            top: 24px;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            animation: toastSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            pointer-events: auto;
+            cursor: default;
+            white-space: nowrap;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%);
+            color: white;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+            color: white;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .toast.exit {
+            animation: toastSlideOut 0.5s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toastSlideOut {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+        }
+
+        .toast-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .toast-message {
+            flex: 1;
+        }
+
+        /* EPG Guide Styles */
+        .epg-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 64px);
+            background: #000;
+        }
+
+        .epg-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            flex-wrap: wrap;
+        }
+
+        .epg-channels {
+            width: 200px;
+            border-right: 2px solid #333;
+            overflow-y: auto;
+            flex-shrink: 0;
+            background: #1a1a1a;
+        }
+
+        .channel-label {
+            padding: 12px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #2a2a2a;
+            white-space: normal;
+            overflow: hidden;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #ccc;
+            background: #1a1a1a;
+            word-break: break-word;
+            text-align: left;
+        }
+
+        .epg-grid-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .epg-timeslots {
+            display: flex;
+            background: #1a1a1a;
+            border-bottom: 2px solid #333;
+            overflow: hidden;
+            flex-shrink: 0;
+            height: 50px;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 24px;
+            color: #e5e7eb;
+        }
+
+        .loading-text {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 520px;
+            height: 8px;
+            background: #1f2937;
+            border-radius: 9999px;
+            overflow: hidden;
+            border: 1px solid #374151;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #06b6d4);
+            width: 0%;
+            border-radius: 9999px;
+            transition: width 0.2s ease;
+        }
+
+        .time-slot {
+            width: 120px;
+            min-width: 120px;
+            padding: 8px 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #2a2a2a;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #999;
+            background: #1a1a1a;
+        }
+
+        .epg-programs {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            background: #000;
+        }
+
+        .channel-row {
+            display: flex;
+            flex-shrink: 0;
+            border-bottom: 1px solid #2a2a2a;
+            height: 60px;
+        }
+
+        .programs-row {
+            position: relative;
+            width: 100%;
+            height: 60px;
+            overflow: hidden;
+        }
+
+        .program-cell {
+            position: absolute;
+            top: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #fff;
+            background: rgba(59, 130, 246, 0.75);
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            transition: all 0.2s;
+            line-height: 1.2;
+            min-width: 12px;
+            border: 1px solid rgba(96, 165, 250, 0.5);
+            height: 48px;
+        }
+
+        .program-cell.compact-program {
+            padding: 2px 4px;
+            font-size: 0.65rem;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.1;
+            text-overflow: clip;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            -webkit-box-orient: vertical;
+            display: -webkit-box;
+            overflow: hidden;
+        }
+
+        .program-cell.tiny-program {
+            padding: 1px 3px;
+            font-size: 0.6rem;
+            line-height: 1;
+            background: rgba(59, 130, 246, 0.75);
+            border-color: rgba(96, 165, 250, 0.5);
+            color: #fff;
+        }
+
+        .program-cell.tiny-program:empty {
+            background: rgba(59, 130, 246, 0.75);
+            border-color: rgba(96, 165, 250, 0.5);
+        }
+
+        .program-cell:empty {
+            background: #0a0a0a;
+        }
+
+        .program-cell:not(:empty):hover {
+            background: rgba(59, 130, 246, 0.9);
+        }
+
+        .program-cell.current {
+            background: #0ea5e9;
+            color: white;
+            font-weight: bold;
+            z-index: 10;
+            border-color: #60a5fa;
+        }
+
+        .program-cell.current:hover {
+            background: #0284c7;
+        }
+
+        .current-time-indicator {
+            position: absolute;
+            width: 2px;
+            height: calc(100% - 50px);
+            background: #ef4444;
+            top: 50px;
+            left: 0;
+            z-index: 15;
+            pointer-events: none;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+        }
+
+        .program-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 70;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 150ms ease;
+        }
+
+        .program-modal-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .program-modal {
+            background: #0b1220;
+            border: 1px solid #1f2a44;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.45);
+            min-width: 320px;
+            max-width: 500px;
+            color: #e5e7eb;
+            position: relative;
+        }
+
+        .program-modal-title {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-bottom: 6px;
+        }
+
+        .program-modal-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #f9fafb;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .program-modal-times {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .program-modal-times .label {
+            display: block;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .program-modal-close {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .program-modal-close:hover {
+            color: #fff;
+        }
+
+        #categorySelector {
+            opacity: 0;
+            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
+            padding: 10px 14px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #e5e7eb;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            color-scheme: dark;
+        }
+
+        #categorySelector option {
+            background-color: #2a2a2a;
+            color: #e5e7eb;
+            padding: 8px;
+        }
+
+        #categorySelector.loaded {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white h-screen overflow-hidden">
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        <div class="logo-container">
+            <div class="logo-mask">
+                <img src="assets/logo_w.png" alt="Logo">
+                <div class="logo-fill" id="logoFill">
+                    <img src="assets/logo_w.png" alt="Logo">
+                </div>
+            </div>
+        </div>
+        <div class="loading-text" id="loadingText">Loading...</div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Global Navbar (shown only when authenticated) -->
+    <nav id="globalNavbar" class="h-14 bg-gray-900 border-b border-gray-800 flex items-center px-6"
+        style="display: none;">
+        <div class="flex items-center gap-4 flex-1">
+            <img src="assets/logo_w.png" class="h-8" />
+
+            <a class="nav-link text-sm text-gray-300 hover:text-white cursor-pointer" data-route="dashboard"
+                data-en="Live TV" data-pt="Televisão"></a>
+            <a class="nav-link text-sm text-gray-300 hover:text-white cursor-pointer" data-route="epg"
+                data-en="Schedule" data-pt="Programação"></a>
+            <a class="nav-link text-sm text-gray-300 hover:text-white cursor-pointer" data-route="account"
+                data-en="Account" data-pt="Conta"></a>
+        </div>
+        <div class="flex items-center gap-6 flex-1 justify-center">
+            <a class="text-sm px-4 py-1.5 rounded bg-gray-800 bg-opacity-50">v0.0.1b</a>
+        </div>
+        <div class="flex-1 flex justify-end items-center gap-4">
+            <a class="nav-link text-sm text-gray-300 hover:text-white cursor-pointer" data-route="status"
+                data-en="Status" data-pt="Status"></a>
+            <a id="logoutBtn" class="text-sm px-4 py-1.5 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer"
+                data-en="Logout" data-pt="Sair"></a>
+        </div>
+    </nav>
+
+    <!-- LOGIN VIEW -->
+    <div class="view-container" data-view="login">
+        <div class="bg-gray-900 text-white h-screen flex items-center justify-center">
+            <div class="bg-gray-800 p-8 rounded-xl w-96 space-y-4 shadow-lg">
+                <h1 class="text-2xl font-semibold text-center">LOGIN</h1>
+                <input id="dns" class="w-full p-2 rounded bg-gray-700" placeholder="Server URL">
+                <input id="user" class="w-full p-2 rounded bg-gray-700" placeholder="Username">
+                <input id="pass" class="w-full p-2 rounded bg-gray-700" type="password" placeholder="Password">
+                <button onclick="loginUser()" class="w-full bg-blue-600 hover:bg-blue-500 p-2 rounded">
+                    Login
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div class="view-container" data-view="dashboard">
+        <div class="flex h-full">
+            <aside class="w-64 bg-gray-800 p-4 overflow-y-auto h-full">
+                <ul id="categoryList" class="space-y-2"></ul>
+            </aside>
+            <main class="flex-1 p-6 overflow-y-auto h-full flex flex-col">
+                <h1 id="categoryTitle" class="text-2xl mb-4"></h1>
+                <div id="searchContainer" class="relative mb-6 group hidden">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-500 group-focus-within:text-blue-500 transition-colors"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    <input id="channelSearch" type="text" data-en-placeholder="Search channels..."
+                        data-pt-placeholder="Pesquisar canais..."
+                        class="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-lg" />
+                </div>
+                <div id="streams" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 flex-1 items-start"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ACCOUNT VIEW -->
+    <div class="view-container" data-view="account">
+        <main class="h-full flex flex-col items-center px-4 py-6 overflow-y-auto">
+            <div id="accountContainer" class="w-full max-w-lg bg-gray-800 rounded-xl p-5 space-y-3.5 my-auto"></div>
+        </main>
+    </div>
+
+    <!-- EPG GUIDE VIEW -->
+    <div class="view-container" data-view="epg">
+        <div class="epg-container">
+            <div class="epg-header">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <label data-en="Category:" data-pt="Categoria:"></label>
+                    <select id="categorySelector"
+                        class="px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded text-sm"></select>
+                    <div id="dateDisplay" class="ml-auto text-gray-400 text-sm"></div>
+                </div>
+            </div>
+            <div class="epg-content flex flex-1 overflow-hidden">
+                <div class="epg-channels" id="channelsList"></div>
+                <div class="epg-grid-wrapper">
+                    <div class="epg-timeslots" id="timeSlots"></div>
+                    <div class="epg-programs" id="programsGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLAYER OVERLAY (Global) -->
+    <div id="playerOverlay"
+        class="fixed inset-0 bg-black z-50 transform translate-y-full transition-transform duration-500 ease-in-out flex flex-col group">
+        <div id="videoLoader"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 pointer-events-none transition-opacity duration-300 opacity-0 z-20">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+            <p id="bufferingText" data-en="Buffering Stream..." data-pt="A carregar stream..."
+                class="text-white font-medium tracking-wide drop-shadow-lg"></p>
+        </div>
+        <div id="topBar"
+            class="p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button onclick="closePlayer()"
+                class="absolute left-4 top-4 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg backdrop-blur-md z-10">
+                ✕ <span data-en="Close" data-pt="Fechar"></span>
+            </button>
+            <div class="text-center w-full">
+                <h2 id="nowPlayingTitle" class="text-xl font-medium drop-shadow-md"></h2>
+                <div id="epgInfo" class="hidden text-gray-300 text-sm mt-2"></div>
+            </div>
+        </div>
+        <video id="video" class="w-full h-full cursor-pointer" autoplay onclick="togglePlay()"></video>
+        <div id="controlBar"
+            class="absolute bottom-0 w-full p-6 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-4 z-30">
+            <div class="flex items-center gap-6">
+                <button onclick="togglePlay()" class="hover:scale-110 transition-transform">
+                    <span id="playIcon" class="text-3xl">⏸</span>
+                </button>
+                <div class="flex items-center gap-3 group/vol">
+                    <button onclick="toggleMute()" id="muteBtn" class="text-2xl">🔊</button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1"
+                        class="w-24 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        oninput="updateVolume(this.value)">
+                </div>
+                <button onclick="toggleFullscreen()"
+                    class="hover:scale-110 transition-transform text-2xl ml-auto">⛶</button>
+            </div>
+            <button onclick="toggleEPGGuide()"
+                class="absolute left-1/2 -translate-x-1/2 bottom-10 hover:scale-110 transition-transform text-white"
+                title="EPG Guide">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div id="epgGuidePanel"
+            class="absolute inset-0 bg-black/95 z-40 transform translate-y-full transition-transform duration-500 ease-in-out flex flex-col"
+            onclick="if(event.target === this) toggleEPGGuide()">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+                <h3 data-en="Schedule Guide" data-pt="Guia de Programas" class="text-xl font-semibold"></h3>
+                <button onclick="toggleEPGGuide()" class="text-2xl hover:text-gray-400">✕</button>
+            </div>
+            <div id="epgGuideList" class="flex-1 overflow-y-auto p-6 space-y-3"></div>
+        </div>
+    </div>
+
+    <input type="file" id="favoriteFileInput" accept=".json" style="display: none;" />
+
+    <!-- Program detail modal -->
+    <div id="programModal" class="program-modal-backdrop">
+        <div class="program-modal">
+            <button id="closeProgramModal" class="program-modal-close" aria-label="Close">✕</button>
+            <div class="program-modal-title" data-en="Program" data-pt="Programa"></div>
+            <div class="program-modal-name" id="programModalName"></div>
+            <div class="program-modal-times">
+                <div>
+                    <span class="label" data-en="Start" data-pt="Início"></span>
+                    <span id="programModalStart"></span>
+                </div>
+                <div>
+                    <span class="label" data-en="End" data-pt="Fim"></span>
+                    <span id="programModalEnd"></span>
+                </div>
+            </div>
+            <div id="programModalDescription" class="program-modal-description"
+                style="margin-top: 1rem; color: #d1d5db; line-height: 1.5;"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
