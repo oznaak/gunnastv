@@ -1,4 +1,4 @@
-# 📺 Xtreamify
+# 📺 Xtreamify Web Player
 
 A modern, self-hosted IPTV web player that connects to Xtream Codes API providers. Stream live TV from your browser with a beautiful, responsive interface.
 
