@@ -2,11 +2,10 @@
 <html>
 
 <head>
-    <!-- Configuration - override for production -->
+    <!-- Configuration - uses relative URL (works in any environment) -->
     <script>
         window.APP_CONFIG = {
-            // Change to your production URL when deploying (e.g., 'https://yourdomain.com/api')
-            API_URL: 'http://localhost:3000/api'
+            API_URL: '/api'
         };
     </script>
     <!-- Tailwind CSS (CDN for development - consider self-hosting for production) -->
