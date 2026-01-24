@@ -198,21 +198,32 @@ router.get('/stream/:streamId', async (req, res) => {
     })
     
     // Parse and rewrite M3U8 to make all segment URLs go through backend proxy
+    // Use the final redirected URL as the base so credentials/encoded path parts are preserved
+    const finalUrl = response.request && response.request.res && response.request.res.responseUrl
+      ? response.request.res.responseUrl
+      : streamUrl
+    const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf('/') + 1)
+
+    console.log('M3U8 rewrite baseUrl:', baseUrl)
+
     let m3u8Content = response.data
     const lines = m3u8Content.split('\n')
     const rewrittenLines = lines.map(line => {
       const trimmed = line.trim()
       // Rewrite segment URLs (non-comment lines)
       if (trimmed && !trimmed.startsWith('#')) {
-        // Segment URLs are relative and already include credentials
-        // e.g., "Fredy/Fredy/125947/hash/segment.ts" or "../Fredy/..."
+        // Resolve segment URL relative to the playlist's final base URL
         let segmentUrl = trimmed
         if (!segmentUrl.startsWith('http')) {
-          // Make absolute: dns + path
-          const path = segmentUrl.startsWith('/') ? segmentUrl : '/' + segmentUrl
-          segmentUrl = dns + path
+          try {
+            segmentUrl = new URL(segmentUrl, baseUrl).href
+          } catch (e) {
+            // Fallback to simple concatenation
+            const path = segmentUrl.startsWith('/') ? segmentUrl : '/' + segmentUrl
+            segmentUrl = dns + path
+          }
         }
-        
+
         // Encode the segment URL for proxy
         const encodedUrl = Buffer.from(segmentUrl).toString('base64url')
         // Return proxy URL that will fetch from Xtream but serve over HTTPS
@@ -220,7 +231,7 @@ router.get('/stream/:streamId', async (req, res) => {
       }
       return line
     })
-    
+
     // Return the rewritten M3U8 playlist with proxied segment URLs
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
     res.setHeader('Cache-Control', 'no-cache')
@@ -268,7 +279,8 @@ router.get('/segment/:encodedUrl', async (req, res) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': '*/*',
         'Accept-Encoding': 'identity',
-        'Connection': 'keep-alive'
+        'Connection': 'keep-alive',
+        'Referer': (function(){ try { return new URL(segmentUrl).origin + '/'; } catch(e){ return dns; } })()
       }
     })
     
