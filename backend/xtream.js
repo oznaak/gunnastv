@@ -197,19 +197,28 @@ router.get('/stream/:streamId', async (req, res) => {
       }
     })
     
+    // Use the final URL after redirects as the base for relative paths
+    const finalUrl = response.request.res.responseUrl || streamUrl
+    const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf('/') + 1)
+    
+    console.log('M3U8 rewrite:', { 
+      originalUrl: streamUrl.substring(0, 40) + '...', 
+      finalUrl: finalUrl.substring(0, 60) + '...',
+      baseUrl: baseUrl.substring(0, 60) + '...'
+    })
+    
     // Parse and rewrite M3U8 playlist to proxy segment URLs
     let m3u8Content = response.data
     const lines = m3u8Content.split('\n')
     const rewrittenLines = lines.map(line => {
       // Rewrite .ts segment URLs to go through our proxy
       if (line.trim() && !line.startsWith('#')) {
-        // Extract the full segment URL (could be relative or absolute)
+        // Extract the segment URL (could be relative or absolute)
         let segmentUrl = line.trim()
         
-        // If relative, make it absolute
+        // If relative, make it absolute using the base URL
         if (!segmentUrl.startsWith('http')) {
-          const baseUrl = new URL(streamUrl)
-          segmentUrl = new URL(segmentUrl, baseUrl).href
+          segmentUrl = baseUrl + segmentUrl
         }
         
         // Encode the segment URL and return proxy URL with token
