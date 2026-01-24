@@ -188,7 +188,7 @@ router.get('/stream/:streamId', async (req, res) => {
     const response = await axios.get(streamUrl, {
       timeout: AXIOS_CONFIG.timeout,
       maxRedirects: 5, // Allow redirects for stream URLs
-      responseType: 'text', // Read as text to rewrite URLs
+      responseType: 'text', // Read as text
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': '*/*',
@@ -197,44 +197,11 @@ router.get('/stream/:streamId', async (req, res) => {
       }
     })
     
-    // Use the final URL after redirects as the base for relative paths
-    const finalUrl = response.request.res.responseUrl || streamUrl
-    const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf('/') + 1)
-    
-    console.log('M3U8 rewrite:', { 
-      originalUrl: streamUrl.substring(0, 40) + '...', 
-      finalUrl: finalUrl.substring(0, 60) + '...',
-      baseUrl: baseUrl.substring(0, 60) + '...'
-    })
-    
-    // Parse and rewrite M3U8 playlist to proxy segment URLs
-    let m3u8Content = response.data
-    const lines = m3u8Content.split('\n')
-    const rewrittenLines = lines.map(line => {
-      // Rewrite .ts segment URLs to go through our proxy
-      if (line.trim() && !line.startsWith('#')) {
-        // Extract the segment URL (could be relative or absolute)
-        let segmentUrl = line.trim()
-        
-        // If relative, make it absolute using the base URL
-        if (!segmentUrl.startsWith('http')) {
-          segmentUrl = baseUrl + segmentUrl
-        }
-        
-        // Encode the segment URL and return proxy URL with token
-        const encodedUrl = Buffer.from(segmentUrl).toString('base64url')
-        return `/api/xtream/segment/${encodedUrl}?token=${req.query.token}`
-      }
-      return line
-    })
-    
-    // Set proper headers for streaming
+    // Return the M3U8 playlist as-is (browser CSP allows HTTP media sources)
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Access-Control-Allow-Origin', '*')
-    
-    // Send rewritten M3U8 playlist
-    res.send(rewrittenLines.join('\n'))
+    res.send(response.data)
     
   } catch (err) {
     console.error('Stream proxy error:', err.message)
