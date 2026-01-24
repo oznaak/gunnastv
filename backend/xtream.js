@@ -188,7 +188,13 @@ router.get('/stream/:streamId', async (req, res) => {
     const response = await axios.get(streamUrl, {
       timeout: AXIOS_CONFIG.timeout,
       maxRedirects: 5, // Allow redirects for stream URLs
-      responseType: 'stream'
+      responseType: 'stream',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Encoding': 'identity',
+        'Connection': 'keep-alive'
+      }
     })
     
     // Set proper headers for streaming
