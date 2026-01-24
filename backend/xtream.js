@@ -127,8 +127,19 @@ router.get('/play/:streamId', auth, (req, res) => {
     const isHttpsEnvironment = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https'
     
     if (isHttpsEnvironment && dns.startsWith('http:')) {
+      // Get session ID from current JWT token
+      const currentToken = req.headers.authorization.split(' ')[1]
+      const payload = jwt.verify(currentToken, process.env.JWT_SECRET)
+      
+      // Generate a short-lived token for stream proxy authentication
+      const streamToken = jwt.sign(
+        { sid: payload.sid },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+      )
+      
       // Return proxy URL for HTTP streams in HTTPS environment
-      const proxyUrl = `${req.protocol}://${req.get('host')}/api/xtream/stream/${validStreamId}`
+      const proxyUrl = `${req.protocol}://${req.get('host')}/api/xtream/stream/${validStreamId}?token=${streamToken}`
       const obfuscated = Buffer.from(proxyUrl).toString('base64')
       res.json({ u: obfuscated, t: Date.now(), proxy: true })
     } else {
@@ -143,9 +154,31 @@ router.get('/play/:streamId', auth, (req, res) => {
 })
 
 // Proxy stream endpoint - serves HTTP streams through HTTPS backend
-router.get('/stream/:streamId', auth, async (req, res) => {
-  const { dns, username, password } = req.user
+router.get('/stream/:streamId', async (req, res) => {
   const { streamId } = req.params
+  
+  // Accept token from query parameter (for HLS.js) or Authorization header
+  const token = req.query.token || (req.headers.authorization?.startsWith('Bearer ') 
+    ? req.headers.authorization.split(' ')[1] 
+    : null)
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  
+  // Verify token and get session
+  let session
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET)
+    session = getSession(payload.sid)
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' })
+    }
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' })
+  }
+  
+  const { dns, username, password } = session
 
   try {
     const validStreamId = validateStreamId(streamId)
