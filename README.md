@@ -96,6 +96,28 @@ your-domain.com {
 }
 ```
 
+### Cloudflare & HLS streams
+
+- If you use Cloudflare in front of the app, prefer **Full** or **Full (strict)** SSL/TLS mode and install an Origin Certificate on your reverse proxy. Do NOT enable "Always Use HTTPS" or Automatic HTTPS Rewrites for the stream endpoints.
+- The backend provides an M3U8 + segment proxy to support HTTP-only Xtream providers while the public site stays HTTPS:
+  - `/api/xtream/play/:streamId` returns an obfuscated URL; in HTTPS environments it returns a proxy URL with a short-lived token.
+  - `/api/xtream/stream/:streamId` fetches the provider M3U8, rewrites segment URLs to backend proxy paths, and returns the playlist over HTTPS.
+  - `/api/xtream/segment/:encoded` fetches the actual `.ts` files from the provider (over HTTP) and serves them over HTTPS to the client, adding browser-like headers and a Referer.
+
+Example minimal Caddy snippet to forward headers:
+
+```caddy
+xtreamify.yourdomain.com {
+  reverse_proxy localhost:3000 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+  }
+}
+```
+
+If you prefer to bypass Cloudflare for streaming (simpler), set the subdomain used for streams to "DNS Only" (gray cloud) in Cloudflare to connect directly to your origin.
+
 ---
 
 ## ⚙️ Configuration

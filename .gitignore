@@ -28,3 +28,4 @@ Thumbs.db
 *.log
 npm-debug.log*
 /frontend/MODULE_STRUCTURE.md
+CLOUDFLARE_SETUP.md

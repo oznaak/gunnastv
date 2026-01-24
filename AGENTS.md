@@ -187,9 +187,32 @@ Required in `.env` file (backend directory):
 
 ### Deployment Notes
 - **Docker**: Multi-stage Node.js Alpine build
-- **Cloudflare**: SSL/TLS Flexible, Automatic HTTPS Rewrites OFF
-- **Reverse Proxy**: Caddy or nginx with proper headers
+- **Cloudflare**: Prefer **Full** or **Full (strict)** with an Origin Certificate installed on your reverse proxy. If you must use Cloudflare's proxy but your Xtream provider serves media over HTTP, the backend includes an M3U8 + segment proxy so streams will still work.
+- **Automatic HTTPS Rewrites**: OFF
+- **Reverse Proxy**: Caddy or nginx with proper headers (see `Caddyfile` notes below)
 - **Health Check**: `wget --spider http://localhost:3000/`
+
+#### Cloudflare & HLS streams (important)
+- If Cloudflare is enabled (orange cloud), set SSL/TLS to **Full** (or Full (strict) with Origin CA). Do NOT enable "Always Use HTTPS" or Automatic rewrites for stream endpoints.
+- The backend will detect HTTPS requests and proxy M3U8 playlists through `/api/xtream/stream/:id` and proxy individual `.ts` segments through `/api/xtream/segment/:encoded`. This avoids browser mixed-content blocks while keeping the site HTTPS.
+- Ensure your reverse proxy forwards `X-Forwarded-Proto` and client IP headers. Example `Caddyfile` snippet:
+
+```caddy
+xtreamify.yourdomain.com {
+    reverse_proxy localhost:3000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+}
+```
+
+#### Stream proxy behavior
+- `/api/xtream/play/:streamId` — returns an obfuscated (base64) URL; when the frontend is served over HTTPS the backend returns a proxy URL that includes a short-lived token.
+- `/api/xtream/stream/:streamId` — fetches the provider M3U8, rewrites segment URLs to point at `/api/xtream/segment/...`, and returns the playlist over HTTPS.
+- `/api/xtream/segment/:encoded` — fetches the actual `.ts` segment from the provider (over HTTP), adds browser-like headers and a Referer, and serves it over HTTPS to the client.
+
+These proxy endpoints are implemented to maintain compatibility with HTTP-only Xtream providers while keeping the public site HTTPS and avoiding mixed-content blocking.
 
 ### Development Workflow
 1. Make changes to backend or frontend files
