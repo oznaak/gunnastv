@@ -266,6 +266,8 @@ router.get('/segment/:encodedUrl', async (req, res) => {
     // Decode the segment URL
     const segmentUrl = Buffer.from(encodedUrl, 'base64url').toString('utf-8')
     
+    console.log('Fetching segment:', segmentUrl.substring(0, 80) + '...')
+    
     // Fetch the segment file
     const response = await axios.get(segmentUrl, {
       timeout: AXIOS_CONFIG.timeout,
