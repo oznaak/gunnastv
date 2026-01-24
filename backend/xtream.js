@@ -197,11 +197,28 @@ router.get('/stream/:streamId', async (req, res) => {
       }
     })
     
-    // Return the M3U8 playlist as-is (browser CSP allows HTTP media sources)
+    // Parse and rewrite M3U8 to make all URLs absolute pointing to Xtream server
+    let m3u8Content = response.data
+    const lines = m3u8Content.split('\n')
+    const rewrittenLines = lines.map(line => {
+      const trimmed = line.trim()
+      // Rewrite segment URLs (non-comment lines)
+      if (trimmed && !trimmed.startsWith('#')) {
+        // If it's a relative URL, make it absolute using the Xtream DNS
+        if (!trimmed.startsWith('http')) {
+          // Handle both /path and path formats
+          const path = trimmed.startsWith('/') ? trimmed : '/' + trimmed
+          return dns + path
+        }
+      }
+      return line
+    })
+    
+    // Return the rewritten M3U8 playlist
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Access-Control-Allow-Origin', '*')
-    res.send(response.data)
+    res.send(rewrittenLines.join('\n'))
     
   } catch (err) {
     console.error('Stream proxy error:', err.message)
