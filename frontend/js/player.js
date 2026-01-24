@@ -43,9 +43,13 @@ export async function openPlayer(streamId, streamName) {
                 abrEwmaFastLive: 3,
                 abrEwmaSlowLive: 9,
                 startLevel: -1,
-                // Ensure Hls XHRs don't send credentials; keep requests simple
+                // Ensure Hls XHRs don't send credentials; attach Authorization header below
                 xhrSetup: function(xhr, url) {
                     xhr.withCredentials = false;
+                    try {
+                        const authToken = token || localStorage.getItem('token') || '';
+                        if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+                    } catch (e) {}
                 }
             };
 
@@ -56,6 +60,53 @@ export async function openPlayer(streamId, streamName) {
             setHlsInstance(newHls);
             newHls.loadSource(url);
             newHls.attachMedia(video);
+
+            // Hls.js error handling + exponential backoff reconnect
+            (function attachRecovery(hlsInstanceRef, srcUrl) {
+                let reconnectAttempts = 0;
+                const maxReconnectAttempts = 6;
+
+                function scheduleReconnect() {
+                    if (reconnectAttempts >= maxReconnectAttempts) return;
+                    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
+                    reconnectAttempts++;
+                    setTimeout(() => {
+                        try {
+                            if (hlsInstanceRef) hlsInstanceRef.destroy();
+                        } catch (e) {}
+                        const fresh = new Hls(hlsConfig);
+                        setHlsInstance(fresh);
+                        fresh.loadSource(srcUrl);
+                        fresh.attachMedia(video);
+                        attachRecovery(fresh, srcUrl);
+                    }, delay);
+                }
+
+                function resetReconnect() {
+                    reconnectAttempts = 0;
+                }
+
+                hlsInstanceRef.on(Hls.Events.ERROR, (event, data) => {
+                    console.warn('Hls error', data);
+                    if (!data || !data.fatal) return;
+
+                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        try {
+                            hlsInstanceRef.recoverMediaError();
+                            resetReconnect();
+                        } catch (e) {
+                            try { hlsInstanceRef.swapAudioCodec(); hlsInstanceRef.recoverMediaError(); resetReconnect(); }
+                            catch (e2) { scheduleReconnect(); }
+                        }
+                    } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        scheduleReconnect();
+                    } else {
+                        scheduleReconnect();
+                    }
+                });
+
+                hlsInstanceRef.on(Hls.Events.FRAG_LOADED, () => resetReconnect());
+            })(newHls, url);
         } else {
             video.crossOrigin = 'anonymous';
             video.src = url;
