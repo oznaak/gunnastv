@@ -32,11 +32,32 @@ export async function openPlayer(streamId, streamName) {
 
         if (Hls.isSupported()) {
             if (hlsInstance) hlsInstance.destroy();
-            const newHls = new Hls();
+
+            // Tuned Hls.js config for better stability and audio quality
+            const hlsConfig = {
+                maxBufferLength: 60,            // seconds of buffer
+                maxMaxBufferLength: 120,        // upper limit for buffer
+                maxBufferHole: 0.5,             // tolerate small gaps
+                maxBufferSize: 60 * 1000 * 1000, // bytes
+                capLevelToPlayerSize: true,
+                abrEwmaFastLive: 3,
+                abrEwmaSlowLive: 9,
+                startLevel: -1,
+                // Ensure Hls XHRs don't send credentials; keep requests simple
+                xhrSetup: function(xhr, url) {
+                    xhr.withCredentials = false;
+                }
+            };
+
+            // Ensure CORS is set on video element
+            video.crossOrigin = 'anonymous';
+
+            const newHls = new Hls(hlsConfig);
             setHlsInstance(newHls);
             newHls.loadSource(url);
             newHls.attachMedia(video);
         } else {
+            video.crossOrigin = 'anonymous';
             video.src = url;
         }
 
