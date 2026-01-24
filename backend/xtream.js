@@ -282,11 +282,24 @@ router.get('/segment/:encodedUrl', async (req, res) => {
     
     // Forward upstream status and relevant headers to client
     res.status(response.status)
-    const forwardHeaders = ['content-type','content-length','content-range','accept-ranges','cache-control']
+    // Include content-encoding/transfer-encoding to avoid surprises from intermediaries
+    const forwardHeaders = ['content-type','content-length','content-range','accept-ranges','cache-control','content-encoding','transfer-encoding']
     for (const h of forwardHeaders) {
       if (response.headers[h]) res.setHeader(h, response.headers[h])
     }
+    // Prevent proxies from transforming binary media
+    res.setHeader('Cache-Control', response.headers['cache-control'] || 'no-transform')
     res.setHeader('Access-Control-Allow-Origin', '*')
+
+    // Robust piping: ensure upstream stream errors/close are propagated and cleaned up
+    response.data.on('error', (err) => {
+      console.error('Segment stream error:', err && err.message)
+      try { res.destroy(err) } catch (e) {}
+    })
+    res.on('close', () => {
+      try { if (response.data && response.data.destroy) response.data.destroy() } catch (e) {}
+    })
+
     // Pipe the segment to the client
     response.data.pipe(res)
     
