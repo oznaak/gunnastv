@@ -184,10 +184,83 @@ router.get('/stream/:streamId', async (req, res) => {
     const validStreamId = validateStreamId(streamId)
     const streamUrl = `${dns}/live/${username}/${password}/${validStreamId}.m3u8`
     
-    // Stream the M3U8 file (allow redirects for Xtream servers)
+    // Fetch the M3U8 file (allow redirects for Xtream servers)
     const response = await axios.get(streamUrl, {
       timeout: AXIOS_CONFIG.timeout,
       maxRedirects: 5, // Allow redirects for stream URLs
+      responseType: 'text', // Read as text to rewrite URLs
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Encoding': 'identity',
+        'Connection': 'keep-alive'
+      }
+    })
+    
+    // Parse and rewrite M3U8 playlist to proxy segment URLs
+    let m3u8Content = response.data
+    const lines = m3u8Content.split('\n')
+    const rewrittenLines = lines.map(line => {
+      // Rewrite .ts segment URLs to go through our proxy
+      if (line.trim() && !line.startsWith('#')) {
+        // Extract the full segment URL (could be relative or absolute)
+        let segmentUrl = line.trim()
+        
+        // If relative, make it absolute
+        if (!segmentUrl.startsWith('http')) {
+          const baseUrl = new URL(streamUrl)
+          segmentUrl = new URL(segmentUrl, baseUrl).href
+        }
+        
+        // Encode the segment URL and return proxy URL with token
+        const encodedUrl = Buffer.from(segmentUrl).toString('base64url')
+        return `/api/xtream/segment/${encodedUrl}?token=${req.query.token}`
+      }
+      return line
+    })
+    
+    // Set proper headers for streaming
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    
+    // Send rewritten M3U8 playlist
+    res.send(rewrittenLines.join('\n'))
+    
+  } catch (err) {
+    console.error('Stream proxy error:', err.message)
+    res.status(500).json({ error: 'Failed to proxy stream' })
+  }
+})
+
+// Proxy segment endpoint - serves video segments (.ts files, etc.)
+router.get('/segment/:encodedUrl', async (req, res) => {
+  const { encodedUrl } = req.params
+  
+  // Accept token from query parameter (for HLS.js) or Authorization header
+  const token = req.query.token || (req.headers.authorization?.startsWith('Bearer ') 
+    ? req.headers.authorization.split(' ')[1] 
+    : null)
+  
+  if (!token) {
+    return res.status(401).send('Authentication required')
+  }
+  
+  // Verify token
+  try {
+    jwt.verify(token, process.env.JWT_SECRET)
+  } catch (err) {
+    return res.status(401).send('Invalid token')
+  }
+  
+  try {
+    // Decode the segment URL
+    const segmentUrl = Buffer.from(encodedUrl, 'base64url').toString('utf-8')
+    
+    // Fetch the segment file
+    const response = await axios.get(segmentUrl, {
+      timeout: AXIOS_CONFIG.timeout,
+      maxRedirects: 5,
       responseType: 'stream',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -197,19 +270,20 @@ router.get('/stream/:streamId', async (req, res) => {
       }
     })
     
-    // Set proper headers for streaming
-    res.setHeader('Content-Type', response.headers['content-type'] || 'application/vnd.apple.mpegurl')
-    res.setHeader('Cache-Control', 'no-cache')
+    // Set proper headers for video segments
+    res.setHeader('Content-Type', response.headers['content-type'] || 'video/MP2T')
+    res.setHeader('Cache-Control', 'public, max-age=31536000') // Cache segments
     res.setHeader('Access-Control-Allow-Origin', '*')
     
-    // Pipe the stream to the client
+    // Pipe the segment to the client
     response.data.pipe(res)
     
   } catch (err) {
-    console.error('Stream proxy error:', err.message)
-    res.status(500).json({ error: 'Failed to proxy stream' })
+    console.error('Segment proxy error:', err.message)
+    res.status(500).send('Failed to proxy segment')
   }
 })
+
 
 // Get EPG data for a stream (with caching)
 router.get('/epg/:streamId', auth, async (req, res) => {
