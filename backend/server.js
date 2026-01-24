@@ -10,8 +10,9 @@ const xtreamRoutes = require('./xtream')
 
 const app = express()
 
-// Trust proxy (required for Cloudflare/nginx - proper IP detection for rate limiting)
-app.set('trust proxy', 1)
+// Trust proxy (required for Cloudflare + Caddy - proper IP detection for rate limiting)
+// Set to true to trust all proxies in the chain (Cloudflare → Caddy → Node.js)
+app.set('trust proxy', true)
 
 // Security headers
 app.use(helmet({

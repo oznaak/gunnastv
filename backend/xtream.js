@@ -114,13 +114,60 @@ router.get('/play/:streamId', auth, (req, res) => {
   try {
     const validStreamId = validateStreamId(streamId)
     
-    // Return obfuscated stream URL to make casual inspection harder
-    // Note: This is obfuscation, not encryption - determined users can still decode
-    const streamUrl = `${dns}/live/${username}/${password}/${validStreamId}.m3u8`
-    const obfuscated = Buffer.from(streamUrl).toString('base64')
-    res.json({ u: obfuscated, t: Date.now() })
+    // Debug: Log proxy detection
+    console.log('Stream proxy check:', {
+      protocol: req.protocol,
+      'x-forwarded-proto': req.get('x-forwarded-proto'),
+      host: req.get('host'),
+      dns: dns.substring(0, 20) + '...',
+      dnsIsHttp: dns.startsWith('http:')
+    })
+    
+    // Check if we should proxy the stream (HTTPS environment)
+    const isHttpsEnvironment = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https'
+    
+    if (isHttpsEnvironment && dns.startsWith('http:')) {
+      // Return proxy URL for HTTP streams in HTTPS environment
+      const proxyUrl = `${req.protocol}://${req.get('host')}/api/xtream/stream/${validStreamId}`
+      const obfuscated = Buffer.from(proxyUrl).toString('base64')
+      res.json({ u: obfuscated, t: Date.now(), proxy: true })
+    } else {
+      // Return direct stream URL
+      const streamUrl = `${dns}/live/${username}/${password}/${validStreamId}.m3u8`
+      const obfuscated = Buffer.from(streamUrl).toString('base64')
+      res.json({ u: obfuscated, t: Date.now(), proxy: false })
+    }
   } catch (err) {
     res.status(400).json({ error: err.message })
+  }
+})
+
+// Proxy stream endpoint - serves HTTP streams through HTTPS backend
+router.get('/stream/:streamId', auth, async (req, res) => {
+  const { dns, username, password } = req.user
+  const { streamId } = req.params
+
+  try {
+    const validStreamId = validateStreamId(streamId)
+    const streamUrl = `${dns}/live/${username}/${password}/${validStreamId}.m3u8`
+    
+    // Stream the M3U8 file
+    const response = await axios.get(streamUrl, {
+      ...AXIOS_CONFIG,
+      responseType: 'stream'
+    })
+    
+    // Set proper headers for streaming
+    res.setHeader('Content-Type', response.headers['content-type'] || 'application/vnd.apple.mpegurl')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    
+    // Pipe the stream to the client
+    response.data.pipe(res)
+    
+  } catch (err) {
+    console.error('Stream proxy error:', err.message)
+    res.status(500).json({ error: 'Failed to proxy stream' })
   }
 })
 
