@@ -114,14 +114,7 @@ router.get('/play/:streamId', auth, (req, res) => {
   try {
     const validStreamId = validateStreamId(streamId)
     
-    // Debug: Log proxy detection
-    console.log('Stream proxy check:', {
-      protocol: req.protocol,
-      'x-forwarded-proto': req.get('x-forwarded-proto'),
-      host: req.get('host'),
-      dns: dns.substring(0, 20) + '...',
-      dnsIsHttp: dns.startsWith('http:')
-    })
+    // (debug logs removed)
     
     // Check if we should proxy the stream (HTTPS environment)
     const isHttpsEnvironment = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https'
@@ -130,12 +123,12 @@ router.get('/play/:streamId', auth, (req, res) => {
       // Get session ID from current JWT token
       const currentToken = req.headers.authorization.split(' ')[1]
       const payload = jwt.verify(currentToken, process.env.JWT_SECRET)
-      
-      // Generate a short-lived token for stream proxy authentication
+
+      // Generate a short-lived token for stream proxy authentication (10 minutes)
       const streamToken = jwt.sign(
         { sid: payload.sid },
         process.env.JWT_SECRET,
-        { expiresIn: '2h' }
+        { expiresIn: '10m' }
       )
       
       // Return proxy URL for HTTP streams in HTTPS environment
@@ -204,7 +197,7 @@ router.get('/stream/:streamId', async (req, res) => {
       : streamUrl
     const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf('/') + 1)
 
-    console.log('M3U8 rewrite baseUrl:', baseUrl)
+    // removed debug logging
 
     let m3u8Content = response.data
     const lines = m3u8Content.split('\n')
@@ -268,27 +261,32 @@ router.get('/segment/:encodedUrl', async (req, res) => {
     // Decode the segment URL
     const segmentUrl = Buffer.from(encodedUrl, 'base64url').toString('utf-8')
     
-    console.log('Fetching segment:', segmentUrl.substring(0, 80) + '...')
+    // removed debug logging
     
-    // Fetch the segment file
+    // Fetch the segment file, forwarding client Range header if present
+    const upstreamHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Encoding': 'identity',
+      'Connection': 'keep-alive',
+      'Referer': (function(){ try { return new URL(segmentUrl).origin + '/'; } catch(e){ return dns; } })()
+    }
+    if (req.headers.range) upstreamHeaders.Range = req.headers.range
+
     const response = await axios.get(segmentUrl, {
       timeout: AXIOS_CONFIG.timeout,
       maxRedirects: 5,
       responseType: 'stream',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Encoding': 'identity',
-        'Connection': 'keep-alive',
-        'Referer': (function(){ try { return new URL(segmentUrl).origin + '/'; } catch(e){ return dns; } })()
-      }
+      headers: upstreamHeaders
     })
     
-    // Set proper headers for video segments
-    res.setHeader('Content-Type', response.headers['content-type'] || 'video/MP2T')
-    res.setHeader('Cache-Control', 'public, max-age=31536000') // Cache segments
+    // Forward upstream status and relevant headers to client
+    res.status(response.status)
+    const forwardHeaders = ['content-type','content-length','content-range','accept-ranges','cache-control']
+    for (const h of forwardHeaders) {
+      if (response.headers[h]) res.setHeader(h, response.headers[h])
+    }
     res.setHeader('Access-Control-Allow-Origin', '*')
-    
     // Pipe the segment to the client
     response.data.pipe(res)
     
