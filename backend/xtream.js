@@ -204,12 +204,13 @@ router.get('/stream/:streamId', async (req, res) => {
       const trimmed = line.trim()
       // Rewrite segment URLs (non-comment lines)
       if (trimmed && !trimmed.startsWith('#')) {
-        // If it's a relative URL, make it absolute using the base URL from the M3U8
+        // Segment URLs are relative and already include credentials
+        // e.g., "Fredy/Fredy/125947/hash/segment.ts" or "../Fredy/..."
         let segmentUrl = trimmed
         if (!segmentUrl.startsWith('http')) {
-          // The base URL for segments includes credentials: http://dns/live/username/password/
-          const baseUrl = `${dns}/live/${username}/${password}/`
-          segmentUrl = baseUrl + (segmentUrl.startsWith('/') ? segmentUrl.substring(1) : segmentUrl)
+          // Make absolute: dns + path
+          const path = segmentUrl.startsWith('/') ? segmentUrl : '/' + segmentUrl
+          segmentUrl = dns + path
         }
         
         // Encode the segment URL for proxy
