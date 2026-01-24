@@ -197,7 +197,7 @@ router.get('/stream/:streamId', async (req, res) => {
       }
     })
     
-    // Parse and rewrite M3U8 to make all URLs absolute pointing to Xtream server
+    // Parse and rewrite M3U8 to make all segment URLs go through backend proxy
     let m3u8Content = response.data
     const lines = m3u8Content.split('\n')
     const rewrittenLines = lines.map(line => {
@@ -205,16 +205,21 @@ router.get('/stream/:streamId', async (req, res) => {
       // Rewrite segment URLs (non-comment lines)
       if (trimmed && !trimmed.startsWith('#')) {
         // If it's a relative URL, make it absolute using the Xtream DNS
-        if (!trimmed.startsWith('http')) {
-          // Handle both /path and path formats
-          const path = trimmed.startsWith('/') ? trimmed : '/' + trimmed
-          return dns + path
+        let segmentUrl = trimmed
+        if (!segmentUrl.startsWith('http')) {
+          const path = segmentUrl.startsWith('/') ? segmentUrl : '/' + segmentUrl
+          segmentUrl = dns + path
         }
+        
+        // Encode the segment URL for proxy
+        const encodedUrl = Buffer.from(segmentUrl).toString('base64url')
+        // Return proxy URL that will fetch from Xtream but serve over HTTPS
+        return `/api/xtream/segment/${encodedUrl}?token=${req.query.token}`
       }
       return line
     })
     
-    // Return the rewritten M3U8 playlist
+    // Return the rewritten M3U8 playlist with proxied segment URLs
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Access-Control-Allow-Origin', '*')
