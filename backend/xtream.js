@@ -184,9 +184,10 @@ router.get('/stream/:streamId', async (req, res) => {
     const validStreamId = validateStreamId(streamId)
     const streamUrl = `${dns}/live/${username}/${password}/${validStreamId}.m3u8`
     
-    // Stream the M3U8 file
+    // Stream the M3U8 file (allow redirects for Xtream servers)
     const response = await axios.get(streamUrl, {
-      ...AXIOS_CONFIG,
+      timeout: AXIOS_CONFIG.timeout,
+      maxRedirects: 5, // Allow redirects for stream URLs
       responseType: 'stream'
     })
     
