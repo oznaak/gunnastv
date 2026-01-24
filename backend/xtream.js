@@ -204,11 +204,12 @@ router.get('/stream/:streamId', async (req, res) => {
       const trimmed = line.trim()
       // Rewrite segment URLs (non-comment lines)
       if (trimmed && !trimmed.startsWith('#')) {
-        // If it's a relative URL, make it absolute using the Xtream DNS
+        // If it's a relative URL, make it absolute using the base URL from the M3U8
         let segmentUrl = trimmed
         if (!segmentUrl.startsWith('http')) {
-          const path = segmentUrl.startsWith('/') ? segmentUrl : '/' + segmentUrl
-          segmentUrl = dns + path
+          // The base URL for segments includes credentials: http://dns/live/username/password/
+          const baseUrl = `${dns}/live/${username}/${password}/`
+          segmentUrl = baseUrl + (segmentUrl.startsWith('/') ? segmentUrl.substring(1) : segmentUrl)
         }
         
         // Encode the segment URL for proxy
