@@ -124,11 +124,11 @@ router.get('/play/:streamId', auth, (req, res) => {
       const currentToken = req.headers.authorization.split(' ')[1]
       const payload = jwt.verify(currentToken, process.env.JWT_SECRET)
 
-      // Generate a short-lived token for stream proxy authentication (10 minutes)
+      // Generate a stream token for stream proxy authentication (6 hours to match main session)
       const streamToken = jwt.sign(
         { sid: payload.sid },
         process.env.JWT_SECRET,
-        { expiresIn: '10m' }
+        { expiresIn: '6h' }
       )
       
       // Return proxy URL for HTTP streams in HTTPS environment
@@ -168,7 +168,27 @@ router.get('/stream/:streamId', async (req, res) => {
       return res.status(401).json({ error: 'Invalid session' })
     }
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' })
+    console.error('Stream proxy - Stream token failed, trying main token if available:', err.message)
+    
+    // Fallback: try to get session from main Authorization header if stream token failed
+    const mainToken = req.headers.authorization?.startsWith('Bearer ') 
+      ? req.headers.authorization.split(' ')[1] 
+      : null;
+    
+    if (mainToken) {
+      try {
+        const mainPayload = jwt.verify(mainToken, process.env.JWT_SECRET)
+        session = getSession(mainPayload.sid)
+        if (!session) {
+          return res.status(401).json({ error: 'Invalid session' })
+        }
+        console.log('Stream proxy - Successfully authenticated using main token as fallback')
+      } catch (mainErr) {
+        return res.status(401).json({ error: 'Both stream and main tokens invalid' })
+      }
+    } else {
+      return res.status(401).json({ error: 'Invalid token and no main token provided' })
+    }
   }
   
   const { dns, username, password } = session
@@ -254,7 +274,23 @@ router.get('/segment/:encodedUrl', async (req, res) => {
   try {
     jwt.verify(token, process.env.JWT_SECRET)
   } catch (err) {
-    return res.status(401).send('Invalid token')
+    console.error('Segment proxy - Stream token failed, trying main token if available:', err.message)
+    
+    // Fallback: try to use main Authorization header if stream token failed
+    const mainToken = req.headers.authorization?.startsWith('Bearer ') 
+      ? req.headers.authorization.split(' ')[1] 
+      : null;
+    
+    if (mainToken) {
+      try {
+        jwt.verify(mainToken, process.env.JWT_SECRET)
+        console.log('Segment proxy - Successfully authenticated using main token as fallback')
+      } catch (mainErr) {
+        return res.status(401).send('Both stream and main tokens invalid')
+      }
+    } else {
+      return res.status(401).send('Invalid token and no main token provided')
+    }
   }
   
   try {

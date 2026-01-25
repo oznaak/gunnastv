@@ -47,8 +47,17 @@ export async function openPlayer(streamId, streamName) {
                 xhrSetup: function(xhr, url) {
                     xhr.withCredentials = false;
                     try {
-                        const authToken = token || localStorage.getItem('token') || '';
-                        if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+                        // For proxied streams, token is in URL query parameter
+                        // For direct streams, use the main auth token
+                        let authToken = '';
+                        if (url.includes('/api/xtream/stream/') || url.includes('/api/xtream/segment/')) {
+                            // Token is already in URL for proxied streams
+                            return;
+                        } else {
+                            // Use main auth token for direct streams
+                            authToken = token || localStorage.getItem('token') || '';
+                            if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+                        }
                     } catch (e) {}
                 }
             };
